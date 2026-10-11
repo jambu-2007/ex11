@@ -1,0 +1,188 @@
+package org.cloudbus.cloudsim.examples;
+
+import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.LinkedList;
+import java.util.List;
+
+import org.cloudbus.cloudsim.Cloudlet;
+import org.cloudbus.cloudsim.CloudletSchedulerTimeShared;
+import org.cloudbus.cloudsim.Datacenter;
+import org.cloudbus.cloudsim.DatacenterBroker;
+import org.cloudbus.cloudsim.DatacenterCharacteristics;
+import org.cloudbus.cloudsim.Host;
+import org.cloudbus.cloudsim.Pe;
+import org.cloudbus.cloudsim.Storage;
+import org.cloudbus.cloudsim.UtilizationModel;
+import org.cloudbus.cloudsim.UtilizationModelFull;
+import org.cloudbus.cloudsim.Vm;
+import org.cloudbus.cloudsim.VmAllocationPolicySimple;
+import org.cloudbus.cloudsim.VmSchedulerTimeShared;
+import org.cloudbus.cloudsim.core.CloudSim;
+import org.cloudbus.cloudsim.provisioners.BwProvisionerSimple;
+import org.cloudbus.cloudsim.provisioners.PeProvisionerSimple;
+import org.cloudbus.cloudsim.provisioners.RamProvisionerSimple;
+
+public class BasicResourceAllocation {
+
+    public static void main(String[] args) {
+
+        int numUsers = 1;
+        Calendar calendar = Calendar.getInstance();
+        boolean traceFlag = false;
+
+        CloudSim.init(numUsers, calendar, traceFlag);
+
+        Datacenter datacenter = createDatacenter("Datacenter_0");
+
+        DatacenterBroker broker = createBroker();
+        int brokerId = broker.getId();
+
+        List<Vm> vmList = new ArrayList<Vm>();
+
+        for (int i = 0; i < 4; i++) {
+
+            Vm vm = new Vm(
+                    i,
+                    brokerId,
+                    1000,
+                    1,
+                    1024,
+                    1000,
+                    10000,
+                    "Xen",
+                    new CloudletSchedulerTimeShared()
+            );
+
+            vmList.add(vm);
+        }
+
+        broker.submitVmList(vmList);
+
+        List<Cloudlet> cloudletList = new ArrayList<Cloudlet>();
+
+        UtilizationModel utilizationModel = new UtilizationModelFull();
+
+        for (int i = 0; i < 8; i++) {
+
+            Cloudlet cloudlet = new Cloudlet(
+                    i,
+                    40000,
+                    1,
+                    300,
+                    300,
+                    utilizationModel,
+                    utilizationModel,
+                    utilizationModel
+            );
+
+            cloudlet.setUserId(brokerId);
+            cloudletList.add(cloudlet);
+        }
+
+        broker.submitCloudletList(cloudletList);
+
+        CloudSim.startSimulation();
+
+        CloudSim.stopSimulation();
+
+        List<Cloudlet> resultList = broker.getCloudletReceivedList();
+
+        printCloudletResults(resultList);
+    }
+
+    private static Datacenter createDatacenter(String name) {
+
+        List<Host> hostList = new ArrayList<Host>();
+
+        for (int i = 0; i < 4; i++) {
+
+            List<Pe> peList = new ArrayList<Pe>();
+
+            peList.add(
+                    new Pe(
+                            0,
+                            new PeProvisionerSimple(1000)
+                    )
+            );
+
+            Host host = new Host(
+                    i,
+                    new RamProvisionerSimple(2048),
+                    new BwProvisionerSimple(10000),
+                    1000000,
+                    peList,
+                    new VmSchedulerTimeShared(peList)
+            );
+
+            hostList.add(host);
+        }
+
+        DatacenterCharacteristics characteristics =
+                new DatacenterCharacteristics(
+                        "x86",
+                        "Linux",
+                        "Xen",
+                        hostList,
+                        10.0,
+                        3.0,
+                        0.05,
+                        0.001,
+                        0.0
+                );
+
+        Datacenter datacenter = null;
+
+        try {
+
+            datacenter = new Datacenter(
+                    name,
+                    characteristics,
+                    new VmAllocationPolicySimple(hostList),
+                    new LinkedList<Storage>(),
+                    0
+            );
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        return datacenter;
+    }
+
+    private static DatacenterBroker createBroker() {
+
+        DatacenterBroker broker = null;
+
+        try {
+            broker = new DatacenterBroker("Broker");
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        return broker;
+    }
+
+    private static void printCloudletResults(List<Cloudlet> list) {
+
+        System.out.println(
+                "Cloudlet ID\tSTATUS\tData Center ID\tVM ID\tTime\tStart Time\tFinish Time"
+        );
+
+        for (Cloudlet cloudlet : list) {
+
+            if (cloudlet.getStatus() == Cloudlet.SUCCESS) {
+
+                System.out.println(
+                        cloudlet.getCloudletId() + "\t\t" +
+                        "SUCCESS\t" +
+                        cloudlet.getResourceId() + "\t\t" +
+                        cloudlet.getVmId() + "\t" +
+                        cloudlet.getActualCPUTime() + "\t" +
+                        cloudlet.getExecStartTime() + "\t" +
+                        cloudlet.getFinishTime()
+                );
+            }
+        }
+    }
+}
